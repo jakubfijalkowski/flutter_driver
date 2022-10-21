@@ -576,7 +576,22 @@ Future<vms.VmService> _waitAndConnect(
       // keeping on trucking and failing farther down the process.
       await service.getVersion();
       return service;
+    } on Error catch (e) {
+      _log("VM connection error (Error)");
+      _log(e.toString());
+      _log(e.stackTrace?.toString() ?? '');
+      _log(e.runtimeType.toString());
+      // We should not be catching all errors arbitrarily here, this might hide real errors.
+      // TODO(ianh): Determine which exceptions to catch here.
+      await socket?.close();
+      if (attempts > 5) {
+        _log('It is taking an unusually long time to connect to the VM...');
+      }
+      attempts += 1;
+      await Future<void>.delayed(_kPauseBetweenReconnectAttempts);
     } catch (e) {
+      _log("VM connection error (other)");
+      _log(e.toString());
       await socket?.close();
       if (attempts > 5) {
         _log('It is taking an unusually long time to connect to the VM...');
