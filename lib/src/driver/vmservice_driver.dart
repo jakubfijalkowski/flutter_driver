@@ -212,7 +212,8 @@ class VMServiceFlutterDriver extends FlutterDriver {
     } else if (isolate.pauseEvent!.kind == vms.EventKind.kResume) {
       _log('Isolate is not paused. Assuming application is ready.');
     } else {
-      _log('Unknown pause event type ${isolate.pauseEvent.runtimeType}. '
+      _log(
+          'Unknown pause event type ${isolate.pauseEvent.runtimeType} (${isolate.pauseEvent?.kind}). '
           'Assuming application is ready.');
     }
 
