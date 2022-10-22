@@ -96,6 +96,18 @@ class VMServiceFlutterDriver extends FlutterDriver {
           await Future<void>.delayed(_kPauseBetweenReconnectAttempts);
           continue;
         }
+        for (var i
+            in [vm.isolates!, vm.systemIsolates ?? []].expand((e) => e)) {
+          _log(
+              "Isolate ${i.name} found, id: ${i.id}, number: ${i.number}, is system: ${i.isSystemIsolate}");
+          try {
+            final d = await client.getIsolate(i.id ?? "");
+            _log("Isolate ${i.id} details:");
+            _log("${d.toJson()}");
+          } catch (e) {
+            _log("Cannot get isolate ${i.id}: ${e.toString()}");
+          }
+        }
         return isolateNumber == null
             ? vm.isolates!.first
             : vm.isolates!.firstWhere(checkIsolate);
