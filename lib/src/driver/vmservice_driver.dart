@@ -118,6 +118,23 @@ class VMServiceFlutterDriver extends FlutterDriver {
       }
     }
 
+    Future<vms.Isolate> waitForIsolateToInitialize(vms.IsolateRef ref) async {
+      int attempts = 0;
+      while (true) {
+        final isolate = await client.getIsolate(ref.id!);
+        if (isolate.pauseEvent!.kind == vms.EventKind.kNone) {
+          _log(
+              'Isolate ${ref.number} is not yet initialized, waiting for it to start.');
+          attempts++;
+          await Future<void>.delayed(_kPauseBetweenIsolateRefresh);
+        } else {
+          _log(
+              'Isolate ${ref.number} reports being initialized after $attempts attempts.');
+          return isolate;
+        }
+      }
+    }
+
     final vms.IsolateRef isolateRef = (await _warnIfSlow<vms.IsolateRef?>(
       future: waitForRootIsolate(),
       timeout: kUnusuallyLongTimeout,
@@ -126,11 +143,14 @@ class VMServiceFlutterDriver extends FlutterDriver {
           : 'Isolate $isolateNumber is taking an unusually long time to start.',
     ))!;
     _log('Isolate found with number: ${isolateRef.number}');
-    vms.Isolate isolate = await client.getIsolate(isolateRef.id!);
-
-    if (isolate.pauseEvent!.kind == vms.EventKind.kNone) {
-      isolate = await client.getIsolate(isolateRef.id!);
-    }
+    final isolate = await _warnIfSlow<vms.Isolate>(
+      future: waitForIsolateToInitialize(isolateRef),
+      timeout: kUnusuallyLongTimeout,
+      message:
+          'The isolate ${isolateRef.number} is taking unusually long time to start'
+          ' being initialized. It still reports ${vms.EventKind.kNone} as pause event'
+          ' which is incorrect.',
+    );
 
     final VMServiceFlutterDriver driver = VMServiceFlutterDriver.connectedTo(
       client,
@@ -622,6 +642,7 @@ Future<vms.VmService> _waitAndConnect(
 /// The amount of time we wait prior to making the next attempt to connect to
 /// the VM service.
 const Duration _kPauseBetweenReconnectAttempts = Duration(seconds: 1);
+const Duration _kPauseBetweenIsolateRefresh = Duration(seconds: 1);
 
 // See `timeline_streams` in
 // https://github.com/dart-lang/sdk/blob/main/runtime/vm/timeline.cc
