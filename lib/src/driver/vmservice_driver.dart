@@ -103,7 +103,9 @@ class VMServiceFlutterDriver extends FlutterDriver {
           try {
             final d = await client.getIsolate(i.id ?? "");
             _log("Isolate ${i.id} details:");
-            _log("${d.toJson()}");
+            final details = d.toJson();
+            details.remove('libraries');
+            _log("$details");
           } catch (e) {
             _log("Cannot get isolate ${i.id}: ${e.toString()}");
           }
