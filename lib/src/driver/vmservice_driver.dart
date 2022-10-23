@@ -97,7 +97,7 @@ class VMServiceFlutterDriver extends FlutterDriver {
     final vmEventListener = client.onVMEvent.listen((e) {
       final json = e.toJson();
       json.remove('isolate');
-      _log("Isolate event ${e.isolate!.id}: $json");
+      _log("VM Event ${e.isolate?.id}: $json");
     }, onError: (e) {
       _log("Isolate event error: $e");
     }, cancelOnError: true);
