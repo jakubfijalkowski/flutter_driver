@@ -86,6 +86,24 @@ class VMServiceFlutterDriver extends FlutterDriver {
     final vms.VmService client =
         await vmServiceConnectFunction(dartVmServiceUrl, headers);
 
+    final isolateEventListener = client.onIsolateEvent.listen((e) {
+      final json = e.toJson();
+      json.remove('isolate');
+      _log("Isolate event ${e.isolate!.id}: $json");
+    }, onError: (e) {
+      _log("Isolate event error: $e");
+    }, cancelOnError: true);
+
+    final vmEventListener = client.onVMEvent.listen((e) {
+      final json = e.toJson();
+      json.remove('isolate');
+      _log("Isolate event ${e.isolate!.id}: $json");
+    }, onError: (e) {
+      _log("Isolate event error: $e");
+    }, cancelOnError: true);
+    await client.streamCancel(vms.EventStreams.kIsolate);
+    await client.streamCancel(vms.EventStreams.kVM);
+
     Future<vms.IsolateRef?> waitForRootIsolate() async {
       bool checkIsolate(vms.IsolateRef ref) =>
           ref.number == isolateNumber.toString();
@@ -136,14 +154,6 @@ class VMServiceFlutterDriver extends FlutterDriver {
           ' which is incorrect.',
     );
 
-    final eventStreamListener = client.onIsolateEvent.listen((e) {
-      final json = e.toJson();
-      json.remove('isolate');
-      _log("Isolate event ${e.isolate!.id}: $json");
-    }, onError: (e) {
-      _log("Isolate event error: $e");
-    }, cancelOnError: true);
-
     final VMServiceFlutterDriver driver = VMServiceFlutterDriver.connectedTo(
       client,
       isolate,
@@ -190,44 +200,26 @@ class VMServiceFlutterDriver extends FlutterDriver {
     /// Looks at the list of loaded extensions for the current [isolateRef], as
     /// well as the stream of added extensions.
     Future<void> waitForServiceExtension() async {
-      await client.streamListen(vms.EventStreams.kIsolate);
-
-      final Completer<void> extensionAdded = Completer<void>();
-      late StreamSubscription<vms.Event> isolateAddedSubscription;
-
-      final Future<void> extensionAlreadyAdded =
-          client.getIsolate(isolateRef.id!).then((vms.Isolate isolate) async {
-        if (isolate.extensionRPCs!.contains(_flutterExtensionMethodName)) {
-          _log("Extension is in the initial list.");
+      int attempts = 0;
+      while (true) {
+        final isolate = await client.getIsolate(isolateRef.id!);
+        if (!isolate.extensionRPCs!.contains(_flutterExtensionMethodName)) {
+          _log(
+              'Isolate ${isolateRef.number} does not have $_flutterExtensionMethodName yet.');
+          attempts++;
+          final isolateJson = isolate.toJson();
+          isolateJson.remove('libraries');
+          _log('Isolate ${isolate.id} obj:');
+          isolateJson.forEach((key, value) {
+            _log('$key = $value');
+          });
+          await Future<void>.delayed(_kPauseBetweenIsolateRefresh);
+        } else {
+          _log(
+              'Extension found in the extensions list after $attempts attempts.');
           return;
         }
-        _log("No extension in the initial list.");
-        // Never complete. Rely on the stream listener to find the service
-        // extension instead.
-        return Completer<void>().future;
-      });
-
-      isolateAddedSubscription = client.onIsolateEvent.listen(
-        (vms.Event data) {
-          _log(
-              "Isolate event in the main subscription ${data.isolate!.id}: $json");
-          if (data.kind == vms.EventKind.kServiceExtensionAdded &&
-              data.extensionRPC == _flutterExtensionMethodName) {
-            _log("Extension found with the main subscription");
-            extensionAdded.complete();
-            isolateAddedSubscription.cancel();
-          }
-        },
-        onError: extensionAdded.completeError,
-        cancelOnError: true,
-      );
-
-      await Future.any(<Future<void>>[
-        extensionAlreadyAdded,
-        extensionAdded.future,
-      ]);
-      await isolateAddedSubscription.cancel();
-      await client.streamCancel(vms.EventStreams.kIsolate);
+      }
     }
 
     // Attempt to resume isolate if it was paused
@@ -263,7 +255,10 @@ class VMServiceFlutterDriver extends FlutterDriver {
           'calls enableFlutterDriverExtension() as the first call in main().',
     );
 
-    await eventStreamListener.cancel();
+    await vmEventListener.cancel();
+    await isolateEventListener.cancel();
+    await client.streamCancel(vms.EventStreams.kVM);
+    await client.streamCancel(vms.EventStreams.kIsolate);
 
     final Health health = await driver.checkHealth();
     if (health.status != HealthStatus.ok) {
