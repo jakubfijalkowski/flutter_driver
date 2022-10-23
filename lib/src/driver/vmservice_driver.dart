@@ -191,7 +191,6 @@ class VMServiceFlutterDriver extends FlutterDriver {
     /// well as the stream of added extensions.
     Future<void> waitForServiceExtension() async {
       await client.streamListen(vms.EventStreams.kIsolate);
-      await Future<void>.delayed(const Duration(seconds: 1));
 
       final Completer<void> extensionAdded = Completer<void>();
       late StreamSubscription<vms.Event> isolateAddedSubscription;
@@ -199,6 +198,7 @@ class VMServiceFlutterDriver extends FlutterDriver {
       final Future<void> extensionAlreadyAdded =
           client.getIsolate(isolateRef.id!).then((vms.Isolate isolate) async {
         if (isolate.extensionRPCs!.contains(_flutterExtensionMethodName)) {
+          _log("Extension is in the initial list.");
           return;
         }
         _log("No extension in the initial list.");
@@ -206,6 +206,8 @@ class VMServiceFlutterDriver extends FlutterDriver {
         // extension instead.
         return Completer<void>().future;
       });
+
+      await Future<void>.delayed(const Duration(seconds: 1));
 
       isolateAddedSubscription = client.onIsolateEvent.listen(
         (vms.Event data) {
