@@ -211,8 +211,11 @@ class VMServiceFlutterDriver extends FlutterDriver {
 
       isolateAddedSubscription = client.onIsolateEvent.listen(
         (vms.Event data) {
+          _log(
+              "Isolate event in the main subscription ${data.isolate!.id}: $json");
           if (data.kind == vms.EventKind.kServiceExtensionAdded &&
               data.extensionRPC == _flutterExtensionMethodName) {
+            _log("Extension found with the main subscription");
             extensionAdded.complete();
             isolateAddedSubscription.cancel();
           }
