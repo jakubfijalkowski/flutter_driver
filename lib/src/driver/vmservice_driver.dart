@@ -94,6 +94,8 @@ class VMServiceFlutterDriver extends FlutterDriver {
       _log("Isolate event error: $e");
     }, cancelOnError: true);
 
+    await client.streamListen(vms.EventStreams.kIsolate);
+
     Future<vms.IsolateRef?> waitForRootIsolate() async {
       bool checkIsolate(vms.IsolateRef ref) =>
           ref.number == isolateNumber.toString();
@@ -190,7 +192,7 @@ class VMServiceFlutterDriver extends FlutterDriver {
     /// Looks at the list of loaded extensions for the current [isolateRef], as
     /// well as the stream of added extensions.
     Future<void> waitForServiceExtension() async {
-      await client.streamListen(vms.EventStreams.kIsolate);
+      // await client.streamListen(vms.EventStreams.kIsolate);
 
       final Completer<void> extensionAdded = Completer<void>();
       late StreamSubscription<vms.Event> isolateAddedSubscription;
