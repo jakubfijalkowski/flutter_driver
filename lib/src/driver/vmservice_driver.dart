@@ -191,7 +191,8 @@ class VMServiceFlutterDriver extends FlutterDriver {
     /// Looks at the list of loaded extensions for the current [isolateRef], as
     /// well as the stream of added extensions.
     Future<void> waitForServiceExtension() async {
-      // await client.streamListen(vms.EventStreams.kIsolate);
+      await client.streamListen(vms.EventStreams.kIsolate);
+      await Future<void>.delayed(const Duration(seconds: 1));
 
       final Completer<void> extensionAdded = Completer<void>();
       late StreamSubscription<vms.Event> isolateAddedSubscription;
