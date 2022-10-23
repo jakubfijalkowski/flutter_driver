@@ -86,15 +86,6 @@ class VMServiceFlutterDriver extends FlutterDriver {
     final vms.VmService client =
         await vmServiceConnectFunction(dartVmServiceUrl, headers);
 
-    await client.streamListen(vms.EventStreams.kIsolate);
-    final eventStreamListener = client.onIsolateEvent.listen((e) {
-      final json = e.toJson();
-      json.remove('isolate');
-      _log("Isolate event ${e.isolate!.id}: ${json}");
-    }, onError: (e) {
-      _log("Isolate event error: $e");
-    }, cancelOnError: true);
-
     Future<vms.IsolateRef?> waitForRootIsolate() async {
       bool checkIsolate(vms.IsolateRef ref) =>
           ref.number == isolateNumber.toString();
@@ -144,6 +135,15 @@ class VMServiceFlutterDriver extends FlutterDriver {
           ' being initialized. It still reports ${vms.EventKind.kNone} as pause event'
           ' which is incorrect.',
     );
+
+    await client.streamListen(vms.EventStreams.kIsolate);
+    final eventStreamListener = client.onIsolateEvent.listen((e) {
+      final json = e.toJson();
+      json.remove('isolate');
+      _log("Isolate event ${e.isolate!.id}: $json");
+    }, onError: (e) {
+      _log("Isolate event error: $e");
+    }, cancelOnError: true);
 
     final VMServiceFlutterDriver driver = VMServiceFlutterDriver.connectedTo(
       client,
