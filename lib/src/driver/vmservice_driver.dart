@@ -101,8 +101,8 @@ class VMServiceFlutterDriver extends FlutterDriver {
     }, onError: (e) {
       _log("Isolate event error: $e");
     }, cancelOnError: true);
-    await client.streamCancel(vms.EventStreams.kIsolate);
-    await client.streamCancel(vms.EventStreams.kVM);
+    await client.streamListen(vms.EventStreams.kIsolate);
+    await client.streamListen(vms.EventStreams.kVM);
 
     Future<vms.IsolateRef?> waitForRootIsolate() async {
       bool checkIsolate(vms.IsolateRef ref) =>
