@@ -207,8 +207,6 @@ class VMServiceFlutterDriver extends FlutterDriver {
         return Completer<void>().future;
       });
 
-      await Future<void>.delayed(const Duration(seconds: 1));
-
       isolateAddedSubscription = client.onIsolateEvent.listen(
         (vms.Event data) {
           _log(
