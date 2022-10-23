@@ -86,6 +86,7 @@ class VMServiceFlutterDriver extends FlutterDriver {
     final vms.VmService client =
         await vmServiceConnectFunction(dartVmServiceUrl, headers);
 
+    await client.streamListen(vms.EventStreams.kIsolate);
     final eventStreamListener = client.onIsolateEvent.listen((e) {
       final json = e.toJson();
       json.remove('isolate');
@@ -93,8 +94,6 @@ class VMServiceFlutterDriver extends FlutterDriver {
     }, onError: (e) {
       _log("Isolate event error: $e");
     }, cancelOnError: true);
-
-    await client.streamListen(vms.EventStreams.kIsolate);
 
     Future<vms.IsolateRef?> waitForRootIsolate() async {
       bool checkIsolate(vms.IsolateRef ref) =>
