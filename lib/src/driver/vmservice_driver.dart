@@ -136,7 +136,6 @@ class VMServiceFlutterDriver extends FlutterDriver {
           ' which is incorrect.',
     );
 
-    await client.streamListen(vms.EventStreams.kIsolate);
     final eventStreamListener = client.onIsolateEvent.listen((e) {
       final json = e.toJson();
       json.remove('isolate');
