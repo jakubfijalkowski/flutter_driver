@@ -86,6 +86,14 @@ class VMServiceFlutterDriver extends FlutterDriver {
     final vms.VmService client =
         await vmServiceConnectFunction(dartVmServiceUrl, headers);
 
+    final eventStreamListener = client.onIsolateEvent.listen((e) {
+      final json = e.toJson();
+      json.remove('isolate');
+      _log("Isolate event ${e.isolate!.id}: ${json}");
+    }, onError: (e) {
+      _log("Isolate event error: $e");
+    }, cancelOnError: true);
+
     Future<vms.IsolateRef?> waitForRootIsolate() async {
       bool checkIsolate(vms.IsolateRef ref) =>
           ref.number == isolateNumber.toString();
@@ -155,6 +163,7 @@ class VMServiceFlutterDriver extends FlutterDriver {
         if (result == null || result.type != 'Success') {
           _log('setFlag failure: $result');
         }
+        _log("setFlag result (always): ${result.toJson()}");
       } catch (e) {
         _log(
             'Failed to set pause_isolates_on_start=false, proceeding. Error: $e');
@@ -183,16 +192,6 @@ class VMServiceFlutterDriver extends FlutterDriver {
     Future<void> waitForServiceExtension() async {
       await client.streamListen(vms.EventStreams.kIsolate);
 
-      final Future<void> extensionAlreadyAdded =
-          client.getIsolate(isolateRef.id!).then((vms.Isolate isolate) async {
-        if (isolate.extensionRPCs!.contains(_flutterExtensionMethodName)) {
-          return;
-        }
-        // Never complete. Rely on the stream listener to find the service
-        // extension instead.
-        return Completer<void>().future;
-      });
-
       final Completer<void> extensionAdded = Completer<void>();
       late StreamSubscription<vms.Event> isolateAddedSubscription;
 
@@ -207,6 +206,16 @@ class VMServiceFlutterDriver extends FlutterDriver {
         onError: extensionAdded.completeError,
         cancelOnError: true,
       );
+
+      final Future<void> extensionAlreadyAdded =
+          client.getIsolate(isolateRef.id!).then((vms.Isolate isolate) async {
+        if (isolate.extensionRPCs!.contains(_flutterExtensionMethodName)) {
+          return;
+        }
+        // Never complete. Rely on the stream listener to find the service
+        // extension instead.
+        return Completer<void>().future;
+      });
 
       await Future.any(<Future<void>>[
         extensionAlreadyAdded,
@@ -248,6 +257,8 @@ class VMServiceFlutterDriver extends FlutterDriver {
           '"package:flutter_driver/driver_extension.dart" and '
           'calls enableFlutterDriverExtension() as the first call in main().',
     );
+
+    await eventStreamListener.cancel();
 
     final Health health = await driver.checkHealth();
     if (health.status != HealthStatus.ok) {
