@@ -12,6 +12,7 @@ import 'package:fuchsia_remote_debug_protocol/fuchsia_remote_debug_protocol.dart
 import 'package:path/path.dart' as p;
 import 'package:vm_service/vm_service.dart' as vms;
 import 'package:webdriver/async_io.dart' as async_io;
+import 'package:webdriver/support/async.dart';
 
 import '../../flutter_driver.dart';
 
@@ -220,7 +221,7 @@ class VMServiceFlutterDriver extends FlutterDriver {
       isolateAddedSubscription = client.onIsolateEvent.listen(
         (vms.Event data) {
           _log(
-              "Event: Isolate event in the main subscription ${data.isolate!.id}: $json");
+              "Event: Isolate event in the main subscription ${data.isolate!.id}: ${data.toJson()}");
           if (data.kind == vms.EventKind.kServiceExtensionAdded &&
               data.extensionRPC == _flutterExtensionMethodName) {
             _log("Event: Extension found with the main subscription");
@@ -231,6 +232,11 @@ class VMServiceFlutterDriver extends FlutterDriver {
         onError: extensionAdded.completeError,
         cancelOnError: true,
       );
+
+      final waitForAll = Future.any(<Future<void>>[
+        extensionAlreadyAdded,
+        extensionAdded.future,
+      ]);
 
       int attempts = 0;
       while (true) {
@@ -250,12 +256,19 @@ class VMServiceFlutterDriver extends FlutterDriver {
           _log(
               'Polling: Extension found in the extensions list after $attempts attempts.');
 
-          await isolateAddedSubscription.cancel();
-          // await client.streamCancel(vms.EventStreams.kIsolate);
-          unawaited(extensionAlreadyAdded);
-          return;
+          break;
         }
       }
+      final isWaitForAllCompleted = Completer<void>();
+      waitForAll.then(isWaitForAllCompleted.complete);
+      await Future<void>.delayed(const Duration(milliseconds: 1));
+      if (!isWaitForAllCompleted.isCompleted) {
+        _log(
+            "The wait for all is not completed but the extension is already found, this might be a deadlock! :D");
+      }
+
+      await waitForAll;
+      await isolateAddedSubscription.cancel();
     }
 
     // Attempt to resume isolate if it was paused
