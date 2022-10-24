@@ -200,12 +200,44 @@ class VMServiceFlutterDriver extends FlutterDriver {
     /// Looks at the list of loaded extensions for the current [isolateRef], as
     /// well as the stream of added extensions.
     Future<void> waitForServiceExtension() async {
+      // await client.streamListen(vms.EventStreams.kIsolate);
+
+      final Completer<void> extensionAdded = Completer<void>();
+      late StreamSubscription<vms.Event> isolateAddedSubscription;
+
+      final Future<void> extensionAlreadyAdded =
+          client.getIsolate(isolateRef.id!).then((vms.Isolate isolate) async {
+        if (isolate.extensionRPCs!.contains(_flutterExtensionMethodName)) {
+          _log("Initial: Extension is in the initial list.");
+          return;
+        }
+        _log("Initial: No extension in the initial list.");
+        // Never complete. Rely on the stream listener to find the service
+        // extension instead.
+        return Completer<void>().future;
+      });
+
+      isolateAddedSubscription = client.onIsolateEvent.listen(
+        (vms.Event data) {
+          _log(
+              "Event: Isolate event in the main subscription ${data.isolate!.id}: $json");
+          if (data.kind == vms.EventKind.kServiceExtensionAdded &&
+              data.extensionRPC == _flutterExtensionMethodName) {
+            _log("Event: Extension found with the main subscription");
+            extensionAdded.complete();
+            isolateAddedSubscription.cancel();
+          }
+        },
+        onError: extensionAdded.completeError,
+        cancelOnError: true,
+      );
+
       int attempts = 0;
       while (true) {
         final isolate = await client.getIsolate(isolateRef.id!);
         if (!isolate.extensionRPCs!.contains(_flutterExtensionMethodName)) {
           _log(
-              'Isolate ${isolateRef.number} does not have $_flutterExtensionMethodName yet.');
+              'Polling: Isolate ${isolateRef.number} does not have $_flutterExtensionMethodName yet.');
           attempts++;
           final isolateJson = isolate.toJson();
           isolateJson.remove('libraries');
@@ -216,7 +248,11 @@ class VMServiceFlutterDriver extends FlutterDriver {
           await Future<void>.delayed(_kPauseBetweenIsolateRefresh);
         } else {
           _log(
-              'Extension found in the extensions list after $attempts attempts.');
+              'Polling: Extension found in the extensions list after $attempts attempts.');
+
+          await isolateAddedSubscription.cancel();
+          // await client.streamCancel(vms.EventStreams.kIsolate);
+          unawaited(extensionAlreadyAdded);
           return;
         }
       }
